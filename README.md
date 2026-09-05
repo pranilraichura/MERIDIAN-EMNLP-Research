@@ -2,7 +2,7 @@
 
 **Meridian** is a dual-stream perplexity architecture for equitable AI text detection that reduces false positive rates on ESL student writing by 15.7× compared to standard detectors, while maintaining 98.3% detection of AI-mimicked ESL text.
 
-> Associated paper: *"Meridian: A Bivariate Perplexity Architecture for Trustworthy and Equitable AI Text Detection"*- submitted to the AI4GOOD Workshop @ ICML 2026.
+> Associated paper: *"Meridian: A Bivariate Perplexity Architecture for Trustworthy and Equitable AI Text Detection"* — accepted to the 5th Workshop on NLP for Positive Impact (NLP4PI) @ EMNLP 2026.
 
 ---
 
@@ -34,7 +34,7 @@ Low-proficiency writers: **0.0% FPR** (95% CI: [0.0%, 3.3%], n=110).
 ## Quickstart
 
 ```bash
-pip install torch transformers numpy
+pip install -r requirements.txt
 
 # Score a single essay
 python inference.py --text "I think that students would benefit from learn at home because..."
@@ -46,13 +46,16 @@ python inference.py --file my_essay.txt
 python inference.py --file essay.txt --threshold 0.80
 ```
 
-**Output:**
+**Output** (real output for an ESL-style sample paragraph):
 ```
-Meridian Result
+Scoring essay (769 characters)...
+
 =============================================
-  P_esl (ESL-Expert LSTM):     2.341
-  P_native (DistilGPT-2):      87.4
-  P(AI-generated):             12.3%
+  Meridian Result
+=============================================
+  P_esl (ESL-Expert LSTM):     2.2
+  P_native (DistilGPT-2):      45.351
+  P(AI-generated):             0.8%
   Prediction:                  Human (ESL)
 =============================================
 
@@ -60,15 +63,40 @@ Note: Meridian is a screening tool, not a verdict system.
 All flagged essays should receive human review.
 ```
 
+Essays must be longer than 60 characters: the ESL-Expert LSTM needs a
+60-character context window before it can make its first prediction.
+
 ---
 
 ## Repository Contents
 
 | File | Description |
 |---|---|
-| `LSTM_ELS.ipynb` | Full training and evaluation notebook |
 | `inference.py` | Standalone inference script |
-| `SUPER_esl_lstm_weights.pth` | Trained ESL-Expert LSTM weights |
+| `requirements.txt` | Python dependencies |
+| `SUPER_esl_lstm_weights.pth` | Trained ESL-Expert LSTM weights (104-char vocab) |
+| `notebooks/LSTM_ELS.ipynb` | Original Colab training/evaluation notebook: ESL-Expert LSTM training, DistilGPT-2 scoring, the Phase 2 logistic classifier, and the zero-shot TOEFL11 generalization run |
+| `data/master_final_scores.csv` | Per-essay perplexity scores (P_esl, P_native) and group labels (human_esl / esl_ai / native_ai) used in the paper's Phase 2 evaluation |
+
+### Reproducibility
+
+`inference.py` reproduces the per-essay scores stored in
+`data/master_final_scores.csv` to within ~2×10⁻⁵ relative error (float32
+nondeterminism across hardware), so the released weights, the character
+vocabulary, and the frozen classifier coefficients in `inference.py` are all
+consistent with the numbers reported in the paper.
+
+Two details matter if you reimplement scoring yourself:
+
+- **P_esl** is computed with a **stride-1 sliding window**: every character
+  after the first 60 is predicted from exactly the preceding 60 characters,
+  and P_esl is the exponentiated mean negative log-likelihood over those
+  predictions. Averaging over non-overlapping chunks instead gives values on
+  a different scale, which the frozen classifier coefficients will misread.
+- **The 104-character vocabulary** is `sorted(set(text))` over the ELLIPSE
+  training corpus, so its ordering is fixed by the trained `fc` layer and
+  cannot be regenerated from a generic character set. It is hardcoded in
+  `inference.py`; see the comment there for provenance.
 
 ---
 
@@ -76,18 +104,25 @@ All flagged essays should receive human review.
 
 Meridian is a **screening tool, not a verdict system**. No automated detection output should initiate disciplinary proceedings without review by a qualified educator familiar with the student's language background.
 
-See the paper's Responsible Deployment Framework for full guidelines.
+See the paper's Responsible Deployment Framework (Appendix B) for full guidelines.
+
+---
+
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE).
 
 ---
 
 ## Citation
 
 ```bibtex
-@article{meridian2026,
-  title   = {Meridian: A Bivariate Perplexity Architecture for
-             Trustworthy and Equitable AI Text Detection},
-  author  = {Anonymous},
-  year    = {2026},
-  note    = {Submitted to AI4GOOD Workshop @ ICML 2026}
+@inproceedings{raichura2026meridian,
+  title     = {Meridian: A Bivariate Perplexity Architecture for
+               Trustworthy and Equitable AI Text Detection},
+  author    = {Raichura, Pranil},
+  booktitle = {Proceedings of the 5th Workshop on NLP for Positive Impact (NLP4PI)},
+  year      = {2026},
+  note      = {EMNLP 2026 Workshop}
 }
 ```
